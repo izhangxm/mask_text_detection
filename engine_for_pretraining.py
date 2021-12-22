@@ -17,13 +17,13 @@ from einops import rearrange
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0, patch_size: int = 16, 
-                    normlize_target: bool = True, log_writer=None, lr_scheduler=None, start_steps=None,
+                    device: torch.device, epoch: int, loss_scaler, max_norm: float = 0, patch_size: int = 16,
+                    normlize_target: bool = True, log_writer:utils.TensorboardLogger=None, lr_scheduler=None, start_steps=None,
                     lr_schedule_values=None, wd_schedule_values=None):
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    metric_logger.add_meter('min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.8f}'))
+    metric_logger.add_meter('min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.8f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
 
@@ -81,8 +81,8 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
 
         torch.cuda.synchronize()
 
-        metric_logger.update(loss=loss_value)
-        metric_logger.update(loss_scale=loss_scale_value)
+        metric_logger.update(loss=float(f'{loss_value:.8f}'))
+        metric_logger.update(loss_scale=float(f'{loss_scale_value:.8f}'))
         min_lr = 10.
         max_lr = 0.
         for group in optimizer.param_groups:

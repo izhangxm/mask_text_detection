@@ -45,7 +45,7 @@ def get_args():
 
     parser.add_argument('--drop_path', type=float, default=0.0, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
-                        
+
     parser.add_argument('--normlize_target', default=True, type=bool,
                         help='normalized the target patch pixels')
 
@@ -111,6 +111,7 @@ def get_args():
     parser.set_defaults(pin_mem=True)
 
     # distributed training parameters
+    # parser.add_argument('--distributed', default=False, type=bool, help='distributed')
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--local_rank', default=-1, type=int)
@@ -155,25 +156,23 @@ def main(args):
 
     # get dataset
     dataset_train = build_pretraining_dataset(args)
+    sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    log_writer = None
+    num_tasks = 1
 
-    if True:  # args.distributed:
-        num_tasks = utils.get_world_size()
+    if args.log_dir is not None:
+        os.makedirs(args.log_dir, exist_ok=True)
+        log_writer = utils.TensorboardLogger(log_dir=args.log_dir)
+
+    if args.distributed:  # args.distributed:
         global_rank = utils.get_rank()
         sampler_rank = global_rank
-        num_training_steps_per_epoch = len(dataset_train) // args.batch_size // num_tasks
-
         sampler_train = torch.utils.data.DistributedSampler(
             dataset_train, num_replicas=num_tasks, rank=sampler_rank, shuffle=True
         )
-        print("Sampler_train = %s" % str(sampler_train))
-    else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
 
-    if global_rank == 0 and args.log_dir is not None:
-        os.makedirs(args.log_dir, exist_ok=True)
-        log_writer = utils.TensorboardLogger(log_dir=args.log_dir)
-    else:
-        log_writer = None
+    num_training_steps_per_epoch = len(dataset_train) // args.batch_size // num_tasks
+    print("Sampler_train = %s" % str(sampler_train))
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,

@@ -13,6 +13,8 @@
 
 import argparse
 import datetime
+import glob
+
 import numpy as np
 import time
 import torch
@@ -36,9 +38,10 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def get_args():
     parser = argparse.ArgumentParser('MAE visualization reconstruction script', add_help=False)
-    parser.add_argument('img_path', type=str, help='input image path')
-    parser.add_argument('save_path', type=str, help='save image path')
-    parser.add_argument('model_path', type=str, help='checkpoint path of model')
+    parser.add_argument('--img_path', type=str, help='input image path')
+    parser.add_argument('--save_path', type=str, help='save image path')
+    parser.add_argument('--model_path', type=str, help='checkpoint path of model')
+
 
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size for backbone')
@@ -52,7 +55,7 @@ def get_args():
                         help='Name of model to vis')
     parser.add_argument('--drop_path', type=float, default=0.0, metavar='PCT',
                         help='Drop path rate (default: 0.1)')
-    
+
     return parser.parse_args()
 
 
@@ -68,9 +71,8 @@ def get_model(args):
     return model
 
 
-def main(args):
-    print(args)
 
+def load_model(args):
     device = torch.device(args.device)
     cudnn.benchmark = True
 
@@ -84,53 +86,90 @@ def main(args):
     checkpoint = torch.load(args.model_path, map_location='cpu')
     model.load_state_dict(checkpoint['model'])
     model.eval()
+    return model
 
-    with open(args.img_path, 'rb') as f:
-        img = Image.open(f)
-        img.convert('RGB')
-        print("img path:", args.img_path)
+from utility import image_tool
+import cv2
+from utils import ToCVImage
+from masking_generator import RandomMaskingGenerator
 
-    transforms = DataAugmentationForMAE(args)
-    img, bool_masked_pos = transforms(img)
-    bool_masked_pos = torch.from_numpy(bool_masked_pos)
 
-    with torch.no_grad():
-        img = img[None, :]
-        bool_masked_pos = bool_masked_pos[None, :]
+def main(args):
+    print(args)
+    model = load_model(args)
+    device = torch.device(args.device)
+    img_path = args.img_path
+    patch_size = model.encoder.patch_embed.patch_size
+    os.makedirs(args.save_path, exist_ok=True)
+
+    img_list = [img_path]
+    if os.path.isdir(img_path):
+        img_list = glob.glob(os.path.join(args.img_path, '**/*.jpg'), recursive=True)
+
+    ratios = np.arange(0.1, 1, 0.05)
+    times = 3
+
+    for img_path in img_list:
+        with open(img_path, 'rb') as f:
+            pl_img = Image.open(f)
+            pl_img.convert('RGB')
+        print("img path:", img_path)
+        img_basename = os.path.basename(img_path).split('.')[0]
+
+        titles = []
+        vis = []
+        transforms = DataAugmentationForMAE(args)
+        img, _ = transforms(pl_img)
         img = img.to(device, non_blocking=True)
-        bool_masked_pos = bool_masked_pos.to(device, non_blocking=True).flatten(1).to(torch.bool)
-        outputs = model(img, bool_masked_pos)
 
-        #save original img
+        # save original img
         mean = torch.as_tensor(IMAGENET_DEFAULT_MEAN).to(device)[None, :, None, None]
         std = torch.as_tensor(IMAGENET_DEFAULT_STD).to(device)[None, :, None, None]
         ori_img = img * std + mean  # in [0, 1]
-        img = ToPILImage()(ori_img[0, :])
-        img.save(f"{args.save_path}/ori_img.jpg")
+        img = img[None, :]
 
-        img_squeeze = rearrange(ori_img, 'b c (h p1) (w p2) -> b (h w) (p1 p2) c', p1=patch_size[0], p2=patch_size[0])
-        img_norm = (img_squeeze - img_squeeze.mean(dim=-2, keepdim=True)) / (img_squeeze.var(dim=-2, unbiased=True, keepdim=True).sqrt() + 1e-6)
-        img_patch = rearrange(img_norm, 'b n p c -> b n (p c)')
-        img_patch[bool_masked_pos] = outputs
+        for r in ratios:
+            vis.append(ToCVImage()(ori_img[0, :]))
+            titles.append(f'random_crop')
+            mask_generator = RandomMaskingGenerator(args.window_size, r)
 
-        #make mask
-        mask = torch.ones_like(img_patch)
-        mask[bool_masked_pos] = 0
-        mask = rearrange(mask, 'b n (p c) -> b n p c', c=3)
-        mask = rearrange(mask, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=14, w=14)
+            for t_i in range(times):
+                bool_masked_pos = mask_generator()
+                bool_masked_pos = torch.from_numpy(bool_masked_pos).to(device, non_blocking=True)
 
-        #save reconstruction img
-        rec_img = rearrange(img_patch, 'b n (p c) -> b n p c', c=3)
-        # Notice: To visualize the reconstruction image, we add the predict and the original mean and var of each patch. Issue #40
-        rec_img = rec_img * (img_squeeze.var(dim=-2, unbiased=True, keepdim=True).sqrt() + 1e-6) + img_squeeze.mean(dim=-2, keepdim=True)
-        rec_img = rearrange(rec_img, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=14, w=14)
-        img = ToPILImage()(rec_img[0, :].clip(0,0.996))
-        img.save(f"{args.save_path}/rec_img.jpg")
+                with torch.no_grad():
+                    bool_masked_pos = bool_masked_pos[None, :]
+                    bool_masked_pos = bool_masked_pos.flatten(1).to(torch.bool)
+                    outputs = model(img, bool_masked_pos)
 
-        #save random mask img
-        img_mask = rec_img * mask
-        img = ToPILImage()(img_mask[0, :])
-        img.save(f"{args.save_path}/mask_img.jpg")
+                    img_squeeze = rearrange(ori_img, 'b c (h p1) (w p2) -> b (h w) (p1 p2) c', p1=patch_size[0], p2=patch_size[0])
+                    img_norm = (img_squeeze - img_squeeze.mean(dim=-2, keepdim=True)) / (img_squeeze.var(dim=-2, unbiased=True, keepdim=True).sqrt() + 1e-6)
+                    img_patch = rearrange(img_norm, 'b n p c -> b n (p c)')
+                    img_patch[bool_masked_pos] = outputs
+
+                    #make mask
+                    H, W = int(ori_img.shape[2]/patch_size[0]), int(ori_img.shape[3]/patch_size[1])
+
+                    mask = torch.ones_like(img_patch)
+                    mask[bool_masked_pos] = 0
+                    mask = rearrange(mask, 'b n (p c) -> b n p c', c=3)
+                    mask = rearrange(mask, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=H, w=W)
+
+                    #save reconstruction img
+                    rec_img = rearrange(img_patch, 'b n (p c) -> b n p c', c=3)
+                    # Notice: To visualize the reconstruction image, we add the predict and the original mean and var of each patch. Issue #40
+                    rec_img = rec_img * (img_squeeze.var(dim=-2, unbiased=True, keepdim=True).sqrt() + 1e-6) + img_squeeze.mean(dim=-2, keepdim=True)
+                    rec_img = rearrange(rec_img, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=H, w=W)
+                    vis.append(ToCVImage()(rec_img[0, :].clip(0,0.996)))
+                    titles.append(f'{r:.2f}_{t_i}_rec')
+
+                    #save random mask img
+                    img_mask = rec_img * mask
+                    vis.append(ToCVImage()(img_mask[0, :]))
+                    titles.append(f'{r:.2f}_{t_i}_mask')
+
+        vis_img = image_tool.my_plt_render(vis, titles, cols=times * 2 + 1, cell_hw=(300, 300))
+        cv2.imwrite(f"{args.save_path}/{img_basename}_vis_img.jpg", vis_img)
 
 if __name__ == '__main__':
     opts = get_args()

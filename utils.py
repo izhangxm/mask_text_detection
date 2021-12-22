@@ -200,7 +200,7 @@ def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
-    
+
 def _load_checkpoint_for_ema(model_ema, checkpoint):
     """
     Workaround for ModelEma._load_checkpoint to accept an already-loaded object
@@ -509,3 +509,31 @@ def create_ds_config(args):
         }
 
         writer.write(json.dumps(ds_config, indent=2))
+
+
+class ToCVImage:
+
+    def __init__(self, mode=None):
+        self.mode = mode
+
+    def __call__(self, pic: torch.Tensor):
+        """
+        Args:
+            pic (Tensor or numpy.ndarray): Image to be converted to PIL Image.
+
+        Returns:
+            PIL Image: Image converted to PIL Image.
+        """
+        if pic.is_cuda:
+            pic = pic.cpu()
+        pic = (pic.numpy() * 255).astype(np.uint8)
+        pic = pic.transpose(1,2,0)
+        pic = pic[:, :, ::-1]
+        return pic
+
+    def __repr__(self):
+        format_string = self.__class__.__name__ + '('
+        if self.mode is not None:
+            format_string += 'mode={0}'.format(self.mode)
+        format_string += ')'
+        return format_string
