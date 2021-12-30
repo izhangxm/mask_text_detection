@@ -148,13 +148,15 @@ def get_plt_images_figure(*args, titles=None, cols=3, cell_hw=(500, 500), max_wi
     fig = plt.figure(constrained_layout=True, dpi=dpi, figsize=figsize)
     gs = fig.add_gridspec(ncols=cols, nrows=rows)
     axes = gs.subplots()
-
-    backgrounds = [fig.canvas.copy_from_bbox(ax.bbox) for ax in axes.reshape(-1)]
-
+    if isinstance(axes, np.ndarray):
+        axes = axes.reshape(-1).tolist()
+    else:
+        axes = [axes]
+    backgrounds = [fig.canvas.copy_from_bbox(ax.bbox) for ax in axes]
     for index in range(rows * cols):
         r = int(index / cols)
         c = index % cols
-        ax = axes[r, c]
+        ax = axes[index]
         bg = backgrounds[index]
         fig.canvas.restore_region(bg)
         if index < len(imgs):
@@ -190,8 +192,6 @@ def make_img_border(image, dst_hw, border_size=10):
     longest_edge = max(h, w)
     if h < longest_edge:
         pass
-
-
 
 # TODO
 def get_concat_cv_image(*args, cols=3, cell_hw=(500, 500), max_width=None):
@@ -707,15 +707,21 @@ def xxsector2line():
 
 def cv_concat():
     import glob
-    img_path_list = glob.glob('datasets01/all_text_db_full_size/test/*.jpg')
-
+    img_path_list = glob.glob('datasets01/all_text_db_full_size/train/**/*.jpg', recursive=True)
+    img_path_list2 = glob.glob('datasets01/all_text_db_full_size/test/**/*.jpg', recursive=True)
+    img_path_list += img_path_list2
     img_list = []
     for img_path in img_path_list:
-        img_list .append(cv2.imread(img_path))
+        img_list.append(cv2.imread(img_path))
+    import time
 
+    start = time.time()
     fig = get_plt_images_figure(img_list)
-    fig.show()
+    print(time.time() - start)
+
+    start = time.time()
     cvimg = pltfig2cvimg(fig)
+    print(time.time() - start)
     print("")
 
 

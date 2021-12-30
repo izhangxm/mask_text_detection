@@ -10,13 +10,38 @@ import math
 import numpy as np
 
 class RandomMaskingGenerator:
-    def __init__(self, input_size, mask_ratio):
-        if not isinstance(input_size, tuple):
-            input_size = (input_size,) * 2
+    def __init__(self, num_patches, mask_ratio):
+        self.num_patches = num_patches
+        self.num_mask = int(mask_ratio * self.num_patches)
 
-        self.height, self.width = input_size
+    def __repr__(self):
+        repr_str = "Maks: total patches {}, mask patches {}".format(
+            self.num_patches, self.num_mask
+        )
+        return repr_str
 
-        self.num_patches = self.height * self.width
+    def __call__(self, mode='block'):
+        """
+        mode :
+        - block
+        - superpixel
+        :param mode:
+        :type mode:
+        :return:
+        :rtype:
+        """
+        mask = np.hstack([
+            np.zeros(self.num_patches - self.num_mask),
+            np.ones(self.num_mask),
+        ])
+        np.random.shuffle(mask)
+        mask = mask.astype(bool)
+        return mask # [196]
+
+
+class RandomSuperPixelMaskGenrator:
+    def __init__(self, num_patches, mask_ratio):
+        self.num_patches = num_patches
         self.num_mask = int(mask_ratio * self.num_patches)
 
     def __repr__(self):

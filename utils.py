@@ -193,6 +193,14 @@ class TensorboardLogger(object):
             assert isinstance(v, (float, int))
             self.writer.add_scalar(head + "/" + k, v, self.step if step is None else step)
 
+    def update_image(self, head='vis_images', step=None, **kwargs):
+        for k, v in kwargs.items():
+            if v is None:
+                continue
+            if not isinstance(v, torch.Tensor):
+                continue
+            self.writer.add_image(head + "/" + k, v, self.step if step is None else step)
+
     def flush(self):
         self.writer.flush()
 

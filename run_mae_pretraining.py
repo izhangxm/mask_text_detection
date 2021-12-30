@@ -11,6 +11,7 @@ import datetime
 import numpy as np
 import time
 import torch
+import torch.utils.data
 import torch.backends.cudnn as cudnn
 import json
 import os
@@ -39,7 +40,7 @@ def get_args():
 
     parser.add_argument('--mask_ratio', default=0.75, type=float,
                         help='ratio of the visual tokens/patches need be masked')
-
+    parser.add_argument('--mask_mode', default='block', type=str, help='mask_mode: block or superpixel')
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size for backbone')
 
@@ -187,7 +188,7 @@ def main(args):
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    print("Model = %s" % str(model_without_ddp))
+    # print("Model = %s" % str(model_without_ddp))
     print('number of params: {} M'.format(n_parameters / 1e6))
 
     total_batch_size = args.batch_size * utils.get_world_size()
@@ -202,8 +203,7 @@ def main(args):
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
 
-    optimizer = create_optimizer(
-        args, model_without_ddp)
+    optimizer = create_optimizer( args, model_without_ddp)
     loss_scaler = NativeScaler()
 
     print("Use step level LR & WD scheduler!")
@@ -236,6 +236,7 @@ def main(args):
             wd_schedule_values=wd_schedule_values,
             patch_size=patch_size[0],
             normlize_target=args.normlize_target,
+            mask_mode=args.mask_mode
         )
         if args.output_dir:
             if (epoch + 1) % args.save_ckpt_freq == 0 or epoch + 1 == args.epochs:

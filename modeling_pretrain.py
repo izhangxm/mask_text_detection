@@ -15,7 +15,8 @@ from functools import partial
 from modeling_finetune import Block, _cfg, PatchEmbed, get_sinusoid_encoding_table
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_ as __call_trunc_normal_
-
+import torch.utils.data
+from einops import rearrange
 
 def trunc_normal_(tensor, mean=0., std=1.):
     __call_trunc_normal_(tensor, mean=mean, std=std, a=-std, b=std)
@@ -30,6 +31,7 @@ __all__ = [
 class PretrainVisionTransformerEncoder(nn.Module):
     """ Vision Transformer with support for patch or hybrid CNN input stage
     """
+
     def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
                  drop_path_rate=0., norm_layer=nn.LayerNorm, init_values=None,
@@ -66,7 +68,6 @@ class PretrainVisionTransformerEncoder(nn.Module):
         # trunc_normal_(self.cls_token, std=.02)
         self.apply(self._init_weights)
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
@@ -98,7 +99,7 @@ class PretrainVisionTransformerEncoder(nn.Module):
         x = x + self.pos_embed.type_as(x).to(x.device).clone().detach()
 
         B, _, C = x.shape
-        x_vis = x[~mask].reshape(B, -1, C) # ~mask means visible
+        x_vis = x[~mask].reshape(B, -1, C)  # ~mask means visible
 
         for blk in self.blocks:
             x_vis = blk(x_vis)
@@ -111,9 +112,11 @@ class PretrainVisionTransformerEncoder(nn.Module):
         x = self.head(x)
         return x
 
+
 class PretrainVisionTransformerDecoder(nn.Module):
     """ Vision Transformer with support for patch or hybrid CNN input stage
     """
+
     def __init__(self, patch_size=16, num_classes=768, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
                  drop_path_rate=0., norm_layer=nn.LayerNorm, init_values=None, num_patches=196,
@@ -131,11 +134,10 @@ class PretrainVisionTransformerDecoder(nn.Module):
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
                 init_values=init_values)
             for i in range(depth)])
-        self.norm =  norm_layer(embed_dim)
+        self.norm = norm_layer(embed_dim)
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
         self.apply(self._init_weights)
-
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -165,15 +167,17 @@ class PretrainVisionTransformerDecoder(nn.Module):
             x = blk(x)
 
         if return_token_num > 0:
-            x = self.head(self.norm(x[:, -return_token_num:])) # only return the mask tokens predict pixels
+            x = self.head(self.norm(x[:, -return_token_num:]))  # only return the mask tokens predict pixels
         else:
-            x = self.head(self.norm(x)) # [B, N, 3*16^2]
+            x = self.head(self.norm(x))  # [B, N, 3*16^2]
 
         return x
+
 
 class PretrainVisionTransformer(nn.Module):
     """ Vision Transformer with support for patch or hybrid CNN input stage
     """
+
     def __init__(self,
                  img_size=224,
                  patch_size=16,
@@ -195,8 +199,8 @@ class PretrainVisionTransformer(nn.Module):
                  norm_layer=nn.LayerNorm,
                  init_values=0.,
                  use_learnable_pos_emb=False,
-                 num_classes=0, # avoid the error from create_fn in timm
-                 in_chans=0, # avoid the error from create_fn in timm
+                 num_classes=0,  # avoid the error from create_fn in timm
+                 in_chans=0,  # avoid the error from create_fn in timm
                  ):
         super().__init__()
         self.encoder = PretrainVisionTransformerEncoder(
@@ -241,7 +245,6 @@ class PretrainVisionTransformer(nn.Module):
 
         trunc_normal_(self.mask_token, std=.02)
 
-
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
@@ -258,10 +261,21 @@ class PretrainVisionTransformer(nn.Module):
     def no_weight_decay(self):
         return {'pos_embed', 'cls_token', 'mask_token'}
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, return_token_num_mode='masked'):
+        """
 
-        x_vis = self.encoder(x, mask) # [B, N_vis, C_e]
-        x_vis = self.encoder_to_decoder(x_vis) # [B, N_vis, C_d]
+        :param x:
+        :type x:
+        :param mask:
+        :type mask:
+        :param return_token_num_mode:  masked shuffled_all unshuffled_all
+        :type return_token_num_mode:
+        :return:
+        :rtype:
+        """
+
+        x_vis = self.encoder(x, mask)  # [B, N_vis, C_e]
+        x_vis = self.encoder_to_decoder(x_vis)  # [B, N_vis, C_d]
 
         B, N, C = x_vis.shape
 
@@ -270,9 +284,19 @@ class PretrainVisionTransformer(nn.Module):
         expand_pos_embed = self.pos_embed.expand(B, -1, -1).type_as(x).to(x.device).clone().detach()
         pos_emd_vis = expand_pos_embed[~mask].reshape(B, -1, C)
         pos_emd_mask = expand_pos_embed[mask].reshape(B, -1, C)
-        x_full = torch.cat([x_vis + pos_emd_vis, self.mask_token + pos_emd_mask], dim=1)
+
         # notice: if N_mask==0, the shape of x is [B, N_mask, 3 * 16 * 16]
-        x = self.decoder(x_full, pos_emd_mask.shape[1]) # [B, N_mask, 3 * 16 * 16]
+        if return_token_num_mode == 'masked':
+            x_full = torch.cat([x_vis + pos_emd_vis, self.mask_token + pos_emd_mask], dim=1)
+            x = self.decoder(x_full, pos_emd_mask.shape[1])  # [B, N_mask, 3 * 16 * 16]
+        elif return_token_num_mode == 'shuffled_all':
+            x_full = torch.cat([x_vis + pos_emd_vis, self.mask_token + pos_emd_mask], dim=1)
+            x = self.decoder(x_full, -1)  # [B, N_mask, 3 * 16 * 16]
+        elif return_token_num_mode == 'unshuffled_all':
+            x_unshuffle = torch.zeros_like(expand_pos_embed)
+            x_unshuffle[~mask] = rearrange(x_vis + pos_emd_vis, 'b n c -> (b n) c')
+            x_unshuffle[mask] = rearrange(self.mask_token + pos_emd_mask, 'b n c -> (b n) c')
+            x = self.decoder(x_unshuffle, -1)
 
         return x
 
@@ -301,6 +325,7 @@ def pretrain_mae_small_patch16_224(pretrained=False, **kwargs):
         model.load_state_dict(checkpoint["model"])
     return model
 
+
 @register_model
 def pretrain_mae_base_patch16_224(pretrained=False, **kwargs):
     model = PretrainVisionTransformer(
@@ -325,6 +350,7 @@ def pretrain_mae_base_patch16_224(pretrained=False, **kwargs):
         )
         model.load_state_dict(checkpoint["model"])
     return model
+
 
 @register_model
 def pretrain_mae_base_patch8_224(pretrained=False, **kwargs):

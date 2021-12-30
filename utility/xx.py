@@ -123,17 +123,13 @@ def func03():
 
 
     tstart = time.time()
-    for i in range(1, 10):
-        items = enumerate(zip(axes, backgrounds), start=0)
-        for j, (ax, background) in items:
-            fig.canvas.restore_region(background)
-            ax.imshow(img_list[j], cmap='gray')
-            fig.canvas.blit(ax.bbox)
+    items = enumerate(zip(axes, backgrounds), start=0)
+    for j, (ax, background) in items:
+        fig.canvas.restore_region(background)
+        ax.imshow(img_list[j], cmap='gray')
+        fig.canvas.blit(ax.bbox)
 
-    fig.show()
-    print('FPS:' , 10/(time.time()-tstart))
-
-
+    print('FPS:' , 1/(time.time()-tstart))
 
 
 if __name__ == '__main__':

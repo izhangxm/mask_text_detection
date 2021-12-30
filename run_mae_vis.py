@@ -45,6 +45,7 @@ def get_args():
 
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size for backbone')
+    parser.add_argument('--mask_mode', default='block', type=str, help='mask_mode: block or superpixel')
     parser.add_argument('--device', default='cuda:0',
                         help='device to use for training / testing')
     parser.add_argument('--imagenet_default_mean_and_std', default=True, action='store_true')
@@ -119,7 +120,7 @@ def main(args):
         titles = []
         vis = []
         transforms = DataAugmentationForMAE(args)
-        img, _ = transforms(pl_img)
+        cropped_cv_image, img, masked_position, masked_map, masked_map_for_vis_block = transforms(pl_img)
         img = img.to(device, non_blocking=True)
 
         # save original img
@@ -131,7 +132,7 @@ def main(args):
         for r in ratios:
             vis.append(ToCVImage()(ori_img[0, :]))
             titles.append(f'random_crop')
-            mask_generator = RandomMaskingGenerator(args.window_size, r)
+            mask_generator = RandomMaskingGenerator(args.window_size[0] * args.window_size[1], r)
 
             for t_i in range(times):
                 bool_masked_pos = mask_generator()
@@ -150,11 +151,6 @@ def main(args):
                     #make mask
                     H, W = int(ori_img.shape[2]/patch_size[0]), int(ori_img.shape[3]/patch_size[1])
 
-                    mask = torch.ones_like(img_patch)
-                    mask[bool_masked_pos] = 0
-                    mask = rearrange(mask, 'b n (p c) -> b n p c', c=3)
-                    mask = rearrange(mask, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=H, w=W)
-
                     #save reconstruction img
                     rec_img = rearrange(img_patch, 'b n (p c) -> b n p c', c=3)
                     # Notice: To visualize the reconstruction image, we add the predict and the original mean and var of each patch. Issue #40
@@ -164,6 +160,10 @@ def main(args):
                     titles.append(f'{r:.2f}_{t_i}_rec')
 
                     #save random mask img
+                    mask = torch.ones_like(img_patch)
+                    mask[bool_masked_pos] = 0
+                    mask = rearrange(mask, 'b n (p c) -> b n p c', c=3)
+                    mask = rearrange(mask, 'b (h w) (p1 p2) c -> b c (h p1) (w p2)', p1=patch_size[0], p2=patch_size[1], h=H, w=W)
                     img_mask = rec_img * mask
                     vis.append(ToCVImage()(img_mask[0, :]))
                     titles.append(f'{r:.2f}_{t_i}_mask')
