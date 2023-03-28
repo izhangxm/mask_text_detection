@@ -34,13 +34,13 @@ import modeling_finetune
 
 def get_args():
     parser = argparse.ArgumentParser('MAE fine-tuning and evaluation script for image classification', add_help=False)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=2, type=int)
     parser.add_argument('--epochs', default=30, type=int)
     parser.add_argument('--update_freq', default=1, type=int)
     parser.add_argument('--save_ckpt_freq', default=20, type=int)
 
     # Model parameters
-    parser.add_argument('--model', default='deit_base_patch16_224', type=str, metavar='MODEL',
+    parser.add_argument('--model', default='vit_base_patch16_224', type=str, metavar='MODEL',
                         help='Name of model to train')
 
     parser.add_argument('--input_size', default=224, type=int,
@@ -137,7 +137,7 @@ def get_args():
     parser.add_argument('--use_cls', action='store_false', dest='use_mean_pooling')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
+    parser.add_argument('--data_path', default='./datasets01/all_text_db_full_size', type=str,
                         help='dataset path')
     parser.add_argument('--eval_data_path', default=None, type=str,
                         help='dataset path for evaluation')
@@ -170,7 +170,7 @@ def get_args():
                         help='Perform evaluation only')
     parser.add_argument('--dist_eval', action='store_true', default=False,
                         help='Enabling distributed evaluation')
-    parser.add_argument('--num_workers', default=10, type=int)
+    parser.add_argument('--num_workers', default=0, type=int)
     parser.add_argument('--pin_mem', action='store_true',
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
@@ -415,7 +415,7 @@ def main(args, ds_init):
 
         optimizer = create_optimizer(
             args, model_without_ddp, skip_list=skip_weight_decay_list,
-            get_num_layer=assigner.get_layer_id if assigner is not None else None, 
+            get_num_layer=assigner.get_layer_id if assigner is not None else None,
             get_layer_scale=assigner.get_scale if assigner is not None else None)
         loss_scaler = NativeScaler()
 

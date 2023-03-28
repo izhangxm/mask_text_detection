@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/11/5
 # @fileName KMeanCuda.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -17,11 +17,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import torch
-import numpy as np
-
 import time
+
+import numpy as np
+import torch
 from tqdm import tqdm
+
 
 class KMeansTorch:
     def __init__(self, n_clusters=3, max_iter=None, verbose=True, device=None):
@@ -48,7 +49,6 @@ class KMeansTorch:
         self.max_iter = max_iter
         self.count = 0
         self.cluster_centers_ = None
-
 
     def fit(self, x):
         # 随机选择初始中心点，想更快的收敛速度可以借鉴sklearn中的kmeans++初始化方法
@@ -77,7 +77,6 @@ class KMeansTorch:
         labels = torch.empty((x.shape[0],)).long().to(self.device)
         dists = torch.empty((0, self.n_clusters)).to(self.device)
 
-
         for i, sample in enumerate(x):
             dist = torch.sum(torch.mul(sample - self.centers, sample - self.centers), (1))
             labels[i] = torch.argmin(dist)
@@ -100,7 +99,6 @@ class KMeansTorch:
         # 查找距离中心点最近的样本，作为聚类的代表样本，更加直观
         self.representative_samples = torch.argmin(self.dists, (0))
         self.cluster_centers_ = torch.argmin(self.dists, (0))
-
 
 
 class KMeansNumpy:
@@ -129,7 +127,6 @@ class KMeansNumpy:
         self.count = 0
         self.cluster_centers_ = None
 
-
     def fit(self, x):
         # 随机选择初始中心点，想更快的收敛速度可以借鉴sklearn中的kmeans++初始化方法
         x = torch.from_numpy(np.array(x)).to(self.device)
@@ -157,7 +154,6 @@ class KMeansNumpy:
         labels = torch.empty((x.shape[0],)).long().to(self.device)
         dists = torch.empty((0, self.n_clusters)).to(self.device)
 
-
         for i, sample in enumerate(x):
             dist = torch.sum(torch.mul(sample - self.centers, sample - self.centers), (1))
             labels[i] = torch.argmin(dist)
@@ -182,13 +178,12 @@ class KMeansNumpy:
         self.cluster_centers_ = torch.argmin(self.dists, (0))
 
 
-
-def time_clock(matrix,device):
+def time_clock(matrix, device):
     a = time.time()
     k = KMEANS(n_clusters=3, max_iter=10, verbose=False, device=device)
     k.fit(matrix)
     b = time.time()
-    return (b-a)/k.count
+    return (b - a) / k.count
 
 
 def choose_device(cuda=False):
@@ -198,33 +193,30 @@ def choose_device(cuda=False):
         device = torch.device("cpu")
     return device
 
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
-    from CoreApp.utils import image_tool
+
     device = choose_device(False)
     cpu_speeds = []
-    for i in tqdm([1,1,1,1, 8000, 20000]):
+    for i in tqdm([1, 1, 1, 1, 8000, 20000]):
         matrix = torch.rand((6, i)).to(device)
         speed = time_clock(matrix, device)
         cpu_speeds.append(speed)
-    l1, = plt.plot([20,100,500,2000,8000,20000],cpu_speeds,color = 'r',label = 'CPU')
+    l1, = plt.plot([20, 100, 500, 2000, 8000, 20000], cpu_speeds, color='r', label='CPU')
 
     device = choose_device(True)
 
     gpu_speeds = []
     for i in tqdm([20, 100, 500, 2000, 8000, 20000]):
         matrix = torch.rand((10000, i)).to(device)
-        speed = time_clock(matrix,device)
+        speed = time_clock(matrix, device)
         gpu_speeds.append(speed)
-    l2, = plt.plot([20, 100, 500, 2000, 8000, 20000], gpu_speeds, color='g',label = "GPU")
-
-
+    l2, = plt.plot([20, 100, 500, 2000, 8000, 20000], gpu_speeds, color='g', label="GPU")
 
     plt.xlabel("num_features")
     plt.ylabel("speed(s/iter)")
     plt.title("Speed with cuda")
-    plt.legend(handles = [l1,l2],labels = ['CPU','GPU'],loc='best')
+    plt.legend(handles=[l1, l2], labels=['CPU', 'GPU'], loc='best')
 
     plt.show("dd")
-
-

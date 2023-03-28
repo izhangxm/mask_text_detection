@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/3/28
 # @fileName __init__.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -18,7 +18,8 @@
 # limitations under the License.
 # ==============================================================================
 import time
-
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 class XJExceptionContext(object):
     def __init__(self, block_name, suppress_expt=False, prt_cost=False):

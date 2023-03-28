@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/4/16
 # @fileName UID.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.

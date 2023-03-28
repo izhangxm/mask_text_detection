@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/11/3
 # @fileName math_tool.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -57,7 +57,7 @@ def calc_theta(_x, _y, center):
     return _theta
 
 
-def calculate_point_angle_with_positiveX_use_center(point, center=[0,0]):
+def calculate_point_angle_with_positiveX_use_center(point, center=[0, 0]):
     return calc_theta(point[0], point[1], center)
 
 

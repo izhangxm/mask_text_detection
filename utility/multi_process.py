@@ -21,8 +21,8 @@
 import multiprocessing
 import threading
 
-from CoreApp.utils import image_tool
 from CoreApp.model.base import MeterBase
+from CoreApp.utils import image_tool
 from MeterReader.settings import METER_DETECT_ENGINE_MANAGER
 from MeterReader.settings import TEXT_ENGINE_MANAGER
 

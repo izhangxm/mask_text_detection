@@ -47,7 +47,7 @@ class PretrainVisionTransformerEncoder(nn.Module):
         # TODO: Add the cls token
         # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         if use_learnable_pos_emb:
-            self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
+            self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         else:
             # sine-cosine positional embeddings
             self.pos_embed = get_sinusoid_encoding_table(num_patches, embed_dim)
@@ -241,7 +241,11 @@ class PretrainVisionTransformer(nn.Module):
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
-        self.pos_embed = get_sinusoid_encoding_table(self.encoder.patch_embed.num_patches, decoder_embed_dim)
+        if use_learnable_pos_emb:
+            self.pos_embed = nn.Parameter(torch.zeros(1, self.encoder.patch_embed.num_patches, decoder_embed_dim))
+        else:
+            # sine-cosine positional embeddings
+            self.pos_embed = get_sinusoid_encoding_table(self.encoder.patch_embed.num_patches, decoder_embed_dim)
 
         trunc_normal_(self.mask_token, std=.02)
 
@@ -368,6 +372,34 @@ def pretrain_mae_base_patch8_224(pretrained=False, **kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs)
+    model.default_cfg = _cfg()
+    if pretrained:
+        checkpoint = torch.load(
+            kwargs["init_ckpt"], map_location="cpu"
+        )
+        model.load_state_dict(checkpoint["model"])
+    return model
+
+@register_model
+def pretrain_mae_base_patch4_224(pretrained=False, **kwargs):
+    patch_size = 4
+    decoder_num_classes = 3 * patch_size **2
+    model = PretrainVisionTransformer(
+        img_size=224,
+        patch_size=patch_size,
+        encoder_embed_dim=64,
+        encoder_depth=6,
+        encoder_num_heads=4,
+        encoder_num_classes=0,
+        decoder_num_classes=decoder_num_classes,
+        decoder_embed_dim=64,
+        decoder_depth=4,
+        decoder_num_heads=4,
+        mlp_ratio=4,
+        qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        use_learnable_pos_emb=True,
         **kwargs)
     model.default_cfg = _cfg()
     if pretrained:

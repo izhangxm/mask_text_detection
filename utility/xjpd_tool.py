@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/6/11
 # @fileName thread_tool.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -17,12 +17,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from threading import Thread, Event
-from queue import Queue
 import functools
 import time
 import uuid
 import warnings
+from queue import Queue
+from threading import Thread, Event
 
 __all__ = ['XJParallels', 'XJPPool']
 

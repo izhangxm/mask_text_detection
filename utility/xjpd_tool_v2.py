@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/6/11
 # @fileName thread_tool.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -17,20 +17,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from threading import Thread
-import threading
-import queue
-from multiprocessing import Process, Event, Queue, Value, Manager
 import functools
+import queue
+import threading
 import time
 import uuid
 import warnings
+from multiprocessing import Process, Value, Manager
+from threading import Thread
 
 __all__ = ['XJParallels', 'XJPPool']
 
 
 class SubM(Process):
-    def __init__(self, status,  worker, task_q, result_d):
+    def __init__(self, status, worker, task_q, result_d):
         super().__init__()
         self.task_q = task_q
         self.result_d = result_d
@@ -66,7 +66,7 @@ class XJParallels(object):
 
     def __init__(self, worker, pd_num=1, sync=True):
         self.manager = Manager()
-        self._xjp2021_worker = self.manager.dict({'worker':worker})
+        self._xjp2021_worker = self.manager.dict({'worker': worker})
         self._xjp2021_sync_res = sync
         self._xjp2021_require_sync = False
         self._xjp2021_require_async = False
@@ -79,7 +79,7 @@ class XJParallels(object):
 
         self._xjp2021_subms = []
         for i in range(pd_num):
-            sm = SubM(self._xjp2021_status,  self._xjp2021_worker, self._xjp2021_task_queen, self._xjp2021_result_dict)
+            sm = SubM(self._xjp2021_status, self._xjp2021_worker, self._xjp2021_task_queen, self._xjp2021_result_dict)
             sm.daemon = True
             sm.start()
             self._xjp2021_subms.append(sm)
@@ -122,6 +122,7 @@ class XJParallels(object):
             @functools.wraps(_worker_attr)
             def decorate_sync(*args, **kwargs):
                 return _worker_attr(*args, **kwargs)
+
             return decorate_sync
         else:
             @functools.wraps(_worker_attr)
@@ -132,6 +133,7 @@ class XJParallels(object):
                 self._xjp2021_task_dict[task_id] = task_info
                 self._xjp2021_task_queen.put(task_info)
                 return task_id, f_evet, self
+
             return decorate_async
 
     def get_result(self, task_id, timeout=None):

@@ -101,7 +101,12 @@ def train_one_epoch(model: torch.nn.Module, data_loader: Iterable, optimizer: to
             rec_imgs_recover = rec_imgs.clone()
             bool_masked_map = rearrange(bool_masked_map, 'b h w c -> b c h w')
             unnorm_images = transed_images * std + mean  # in [0, 1]
-            rec_imgs_recover[~bool_masked_map] = unnorm_images[~bool_masked_map]
+            try:
+                rec_imgs_recover[~bool_masked_map] = unnorm_images[~bool_masked_map]
+            except Exception as e:
+                pass
+                print(e)
+
             vis2 = ToCVImage()(rec_imgs_recover[0, :].detach())
 
             masked_vis = rec_imgs_recover.clone()

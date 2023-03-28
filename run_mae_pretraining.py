@@ -31,7 +31,7 @@ import modeling_pretrain
 def get_args():
     parser = argparse.ArgumentParser('MAE pre-training script', add_help=False)
     parser.add_argument('--batch_size', default=64, type=int)
-    parser.add_argument('--epochs', default=300, type=int)
+    parser.add_argument('--epochs', default=128, type=int)
     parser.add_argument('--save_ckpt_freq', default=20, type=int)
 
     # Model parameters

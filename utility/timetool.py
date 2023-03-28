@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/5/30
 # @fileName timetool.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -38,6 +38,7 @@ class _MyTimer(object):
         self.now = _n
         return _c
 
+
 def get_timer():
     _t = _MyTimer()
     return _t
@@ -53,4 +54,3 @@ if __name__ == '__main__':
     timer.reset()
     time.sleep(0.3)
     print(timer.cost())
-

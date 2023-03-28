@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/4/3
 # @fileName labeltools.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -18,10 +18,11 @@
 # limitations under the License.
 # ==============================================================================
 import json
-from CoreApp.config import BASE_DIR
 import os
+
 import cv2
 import numpy as np
+
 from CoreApp.utils.image_tool import show_cvimg_in_sciview
 
 

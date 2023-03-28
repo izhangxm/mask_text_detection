@@ -4,7 +4,7 @@
 # https://github.com/rwightman/pytorch-image-models/tree/master/timm
 # https://github.com/facebookresearch/deit
 # https://github.com/facebookresearch/dino
-# --------------------------------------------------------'
+# --------------------------------------------------------'≤
 import os
 import torch
 
@@ -23,14 +23,14 @@ from utility import image_tool, superpixel
 from einops import rearrange
 from fast_slic.avx2 import SlicAvx2
 
-
+z
 class DataAugmentationForMAE(object):
     def __init__(self, args):
         imagenet_default_mean_and_std = args.imagenet_default_mean_and_std
         mean = IMAGENET_INCEPTION_MEAN if not imagenet_default_mean_and_std else IMAGENET_DEFAULT_MEAN
         std = IMAGENET_INCEPTION_STD if not imagenet_default_mean_and_std else IMAGENET_DEFAULT_STD
-        # self.crop_resize_transform = transforms.RandomResizedCrop(args.input_size)
-        self.crop_resize_transform = transforms.Resize(args.input_size)
+        self.crop_resize_transform = transforms.RandomResizedCrop(args.input_size)
+        self.resize_transform = transforms.Resize(size=(args.input_size, args.input_size))
 
         self.transform = transforms.Compose([
             transforms.ToTensor(),
@@ -44,20 +44,17 @@ class DataAugmentationForMAE(object):
         )
         self.args = args
 
-    def get_superpixel_info(self, resized_image, mask_ratio, mode='vis'):
+
+    def get_super_pix_label_map(self, resized_image, pixels_n=5012):
+        slic = SlicAvx2(num_components=pixels_n, compactness=10)
+        label_slic: np.ndarray = slic.iterate(cv2.cvtColor(resized_image, cv2.COLOR_BGR2LAB))
+        return label_slic
+
+    def get_superpixel_info(self, resized_image, label_map, mask_ratio, mode='vis'):
         """
         about mode
         - vis return (1 - mask_ratio) vis block and some ones may be masked
         - all return 100% vis block, all_block may be effect
-
-        :param resized_image:
-        :type resized_image:
-        :param mask_ratio:
-        :type mask_ratio:
-        :param mode:
-        :type mode:
-        :return:
-        :rtype:
         """
         h, w, _ = resized_image.shape
         rz = self.args.patch_size[0]
@@ -67,8 +64,7 @@ class DataAugmentationForMAE(object):
         # slic.iterate(10)  # 迭代次数，越大效果越好
         # label_slic = slic.getLabels()  # 获取超像素标签
 
-        slic = SlicAvx2(num_components=1024, compactness=10)
-        label_slic = slic.iterate( cv2.cvtColor(resized_image, cv2.COLOR_BGR2LAB))
+        label_slic = label_map
 
         if mode == 'vis':
             masked_position_generator = RandomMaskingGenerator(win_h * win_w, mask_ratio)
@@ -98,7 +94,6 @@ class DataAugmentationForMAE(object):
 
         elif mode == 'all':
             label_slic = label_slic + 1
-            max_cls = np.max(label_slic)
             cl_numbers = np.max(label_slic) - np.min(label_slic)
             masked_position = RandomMaskingGenerator(cl_numbers, mask_ratio=mask_ratio)()
             for i, m in enumerate(masked_position):
@@ -113,7 +108,24 @@ class DataAugmentationForMAE(object):
 
             return masked_map, masked_map_for_vis_block, masked_position
 
-    def __call__(self, image):
+
+    def get_block_info(self, resized_image):
+        rz = self.args.patch_size[0]
+        masked_position = self.masked_position_generator()
+        mask_map = np.zeros(resized_image.shape[:2])
+        mask_patches = rearrange(mask_map, '(h p1) (w p2) -> (h w) (p1 p2)', p1=rz, p2=rz)
+        new_mask_map = np.zeros_like(mask_patches)
+        new_mask_map[masked_position.astype(np.bool8)] = 1
+        masked_map = rearrange(new_mask_map.astype(bool), '(h w) (p1 p2) -> (h p1) (w p2)',
+                               h=resized_image.shape[0] // rz, p1=rz)
+        masked_map_for_vis_block = np.zeros_like(masked_map, dtype=np.bool8)
+
+        masked_map = superpixel.expand_map_to_img(masked_map, c=3)
+        masked_map_for_vis_block = superpixel.expand_map_to_img(masked_map_for_vis_block, c=3)
+        return masked_map, masked_map_for_vis_block, masked_position
+
+
+    def __call__(self, image, pixels_n=5012):
         # pillow image
         cropped_pl_image = self.crop_resize_transform(image)
 
@@ -124,19 +136,10 @@ class DataAugmentationForMAE(object):
         cropped_cv_image = np.array(cropped_pl_image)[:, :, ::-1].copy()
 
         if mask_mode == 'block':
-            masked_position = self.masked_position_generator()
-            mask_map = np.zeros(cropped_cv_image.shape[:2])
-            mask_patches = rearrange(mask_map, '(h p1) (w p2) -> (h w) (p1 p2)', p1=rz, p2=rz)
-            new_mask_map = np.zeros_like(mask_patches)
-            new_mask_map[masked_position.astype(np.bool8)] = 1
-            masked_map = rearrange(new_mask_map.astype(bool), '(h w) (p1 p2) -> (h p1) (w p2)', h=cropped_cv_image.shape[0]//rz, p1=rz)
-            masked_map_for_vis_block = np.zeros_like(masked_map, dtype=np.bool8)
-
-            masked_map = superpixel.expand_map_to_img(masked_map, c=3)
-            masked_map_for_vis_block = superpixel.expand_map_to_img(masked_map_for_vis_block, c=3)
-
+            masked_map, masked_map_for_vis_block, masked_position = self.get_block_info(cropped_cv_image)
         elif mask_mode == 'superpixel':
-            masked_map, masked_map_for_vis_block, masked_position = self.get_superpixel_info(cropped_cv_image, mask_ratio, mode='all')
+            label_map = self.get_super_pix_label_map(cropped_cv_image, pixels_n=pixels_n)
+            masked_map, masked_map_for_vis_block, masked_position = self.get_superpixel_info(cropped_cv_image, label_map, mask_ratio, mode='all')
         else:
             raise Exception(f'unknown mask_mode:{mask_mode}')
 
@@ -247,15 +250,15 @@ def build_transform(is_train, args):
 
 
 if __name__ == '__main__':
-    from PIL import Image
-    from argparse import Namespace
-    args = Namespace(input_size = 224, window_size=14)
-    img_path = 'datasets01/all_text_db_full_size/test/img_1.jpg'
-    with open(img_path, 'rb') as f:
-        pl_img = Image.open(f)
-        pl_img.convert('RGB')
-    transforms = DataAugmentationForMAE(args)
-
-    cropped_cv_image, img, masked_position, masked_map, masked_map_for_vis_block = transforms(pl_img)
-    image_tool.show_cvimg_in_sciview(cropped_cv_image)
+    # from PIL import Image
+    # from argparse import Namespace
+    # args = Namespace(input_size = 224, window_size=14)
+    # img_path = 'datasets01/all_text_db_full_size/test/img_1.jpg'
+    # with open(img_path, 'rb') as f:
+    #     pl_img = Image.open(f)
+    #     pl_img.convert('RGB')
+    # transforms = DataAugmentationForMAE(args)
+    #
+    # cropped_cv_image, img, masked_position, masked_map, masked_map_for_vis_block = transforms(pl_img)
+    # image_tool.show_cvimg_in_sciview(cropped_cv_image)
     print('ok')

@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/4/9
 # @fileName fitTools.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -50,9 +50,9 @@ def circle2PolyVals(center, r, X):
     for x in X:
         p2 = 1
         p1 = -2 * c_y
-        p0 = c_y**2 + (x - c_x) ** 2 - r ** 2
+        p0 = c_y ** 2 + (x - c_x) ** 2 - r ** 2
         y1, y2 = np.roots([p2, p1, p0])
-        if not isinstance(y1,complex):
+        if not isinstance(y1, complex):
             points.append([x, y1])
         if not isinstance(y2, complex):
             points.append([x, y2])
@@ -70,8 +70,8 @@ def circle_polt_vals(center, r, start_angle, end_angle, delta=0.5):
     #     points.append([x, y])
 
     # 优化为numpy的方式
-    angles = np.arange(start_angle, end_angle+delta, delta)
-    theta = angles/360*2*np.pi
+    angles = np.arange(start_angle, end_angle + delta, delta)
+    theta = angles / 360 * 2 * np.pi
     X = c_x + r * np.cos(theta)
     Y = c_y + r * np.sin(theta)
     p_s = np.vstack([X, Y]).T.astype(np.int32)
@@ -93,7 +93,6 @@ def test_fit_tool():
     pass
     from CoreApp.utils import image_tool
     import cv2
-    import os
 
     img_path = "/Users/Simon/WorkStation/PycharmProjects/MeterReader/exampleImages/02_standard_voltmeter/IMG_20210317_153353_BURST0095_labelmap.png"
 
@@ -113,12 +112,7 @@ def test_fit_tool():
     image_tool.show_cvimg_in_sciview(vis_img)
 
 
-
-
 if __name__ == '__main__':
     test_fit_tool()
 
     # p_s = circle_polt_vals((0,0),10,0,90,1)
-
-
-

@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-# @author izhangxm
+# @author tccw
 # @date 2021/3/31
 # @fileName image_tool.py
 # Copyright 2017 izhangxm@gmail.com. All Rights Reserved.
@@ -18,14 +18,14 @@
 # limitations under the License.
 # ==============================================================================
 
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-import numpy as np
-import cv2
-import math
-import matplotlib.font_manager as font_manager
-from matplotlib.font_manager import FontProperties
 import io
+import math
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.font_manager import FontProperties
+
 
 def abandoned_my_plt_render_v1(imgs: [list, np.ndarray], titles=None):
     """
@@ -98,7 +98,7 @@ def abandoned_my_plt_render_v1(imgs: [list, np.ndarray], titles=None):
     return vis_image
 
 
-def get_plt_images_figure(*args, titles=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14):
+def get_plt_images_figure(*args, titles=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14., axis_on=True):
     """
         generate combined image use matplotlib
         :param imgs:
@@ -157,13 +157,17 @@ def get_plt_images_figure(*args, titles=None, cols=3, cell_hw=(500, 500), max_wi
         r = int(index / cols)
         c = index % cols
         ax = axes[index]
+        if not axis_on:
+            ax.axis('off')
         bg = backgrounds[index]
         fig.canvas.restore_region(bg)
+
         if index < len(imgs):
             title = ""
             if titles != None and index <= len(titles) - 1:
                 title = titles[index]
             mask = imgs[index]
+            mask = constrain_resize_image(mask, max_hw=max(cell_hw))
 
             # --------------- ------------------------------------------
             # x_step = int(mask.shape[1] / 5)
@@ -182,36 +186,12 @@ def get_plt_images_figure(*args, titles=None, cols=3, cell_hw=(500, 500), max_wi
             ax.set_title(title, fontproperties=title_font)
         else:
             ax.axis('off')
+            break
         fig.canvas.blit(ax.bbox)
     return fig
 
 
-def make_img_border(image, dst_hw, border_size=10):
-    top, bottom, left, right = (0, 0, 0, 0)
-    h, w, _ = image.shape
-    longest_edge = max(h, w)
-    if h < longest_edge:
-        pass
-
-# TODO
-def get_concat_cv_image(*args, cols=3, cell_hw=(500, 500), max_width=None):
-    """
-        generate combined image use matplotlib
-        :param imgs:
-        :type imgs:
-        :param titles:
-        :type titles:
-        :param cols:
-        :type cols:
-        :param cell_hw:
-        :type cell_hw:
-        :param max_width:
-        :type max_width:
-        :param font_size:
-        :type font_size:
-        :return:
-        :rtype:
-        """
+def get_cv_images_pic(*args, titles=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14.):
     imgs = []
     for arg in args:
         if isinstance(arg, list):
@@ -226,20 +206,39 @@ def get_concat_cv_image(*args, cols=3, cell_hw=(500, 500), max_width=None):
     w = cell_w * cols
     h = cell_h * rows
 
-    res_img = None
-    for r in range(rows):
-        row_img = None
-        for c in range(cols):
-            _img = imgs[r * cols] + c
+    vis_image = np.ones((h, w, 3), dtype=np.uint8) * 255
 
-            if row_img is None:
-                row_img = _img
-            else:
-                pass
+    for index in range(rows * cols):
+        r = int(index / cols)
+        c = index % cols
+        if index >= len(imgs):
+            continue
+        img = imgs[index]
+        if len(img.shape) == 2:
+            img = np.expand_dims(img, axis=2)
+            img = np.concatenate([img,img, img], axis=2)
+        img = constrain_resize_image(img.copy(), max_hw=cell_w)
 
-    return
+        if titles != None and index < len(titles):
+            title = titles[index]
+            img = put_optimize_text(img.copy(), label=title, font_size=font_size / 14)
 
-def my_plt_render(imgs: [list, np.ndarray], titles=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14, mode='plt'):
+        img_h, img_w = img.shape[:2]
+        y_s = r * cell_h
+        x_s = c * cell_w
+
+        vis_image[y_s:y_s + img_h, x_s:x_s + img_w] = img
+
+    if max_width and vis_image.shape[1] > max_width:
+        _h = int(max_width * h / w)
+        _w = int(max_width)
+        vis_image = resize_image(vis_image, (_h, _w))
+
+    return vis_image
+
+
+def my_plt_render(imgs: [list, np.ndarray], titles=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14.,
+                  fast_vis=False):
     """
     generate combined image use matplotlib
     :param imgs:
@@ -257,9 +256,15 @@ def my_plt_render(imgs: [list, np.ndarray], titles=None, cols=3, cell_hw=(500, 5
     :return:
     :rtype:
     """
-    fig = get_plt_images_figure(imgs, titles=titles, cols=cols, cell_hw=cell_hw, max_width=max_width, font_size=font_size)
-    vis_image = pltfig2cvimg(fig)
+    if not fast_vis:
+        fig = get_plt_images_figure(imgs, titles=titles, cols=cols, cell_hw=cell_hw, max_width=max_width,
+                                    font_size=font_size)
+        vis_image = pltfig2cvimg(fig)
+    else:
+        vis_image = get_cv_images_pic(imgs, titles=titles, cols=cols, cell_hw=cell_hw, max_width=max_width,
+                                      font_size=font_size)
     return vis_image
+
 
 def pltfig2cvimg_v1(fig):
     """
@@ -284,6 +289,7 @@ def pltfig2cvimg_v1(fig):
     image = np.asarray(image)[:, :, :3][:, :, ::-1]
     return image
 
+
 def pltfig2cvimg(fig):
     """
     fig = plt.figure()
@@ -301,7 +307,8 @@ def pltfig2cvimg(fig):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
-def show_cvimg_in_sciview_v1(*args, names=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14, **kwargs):
+
+def show_cvimg_in_sciview_v1(*args, names=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14., **kwargs):
     imgs = []
     for arg in args:
         if isinstance(arg, list):
@@ -330,7 +337,9 @@ def show_cvimg_in_sciview_v1(*args, names=None, cols=3, cell_hw=(500, 500), max_
     plt.show()
     plt.close('all')
 
-def show_cvimg_in_sciview(*args, names=None, cols=3, cell_hw=(500, 500), max_width=None, font_size=14, **kwargs):
+
+def show_cvimg_in_sciview(*args, names=None, cols=2, cell_hw=(500, 500), max_width=None, font_size=14., fast_vis=False,
+                          axis_on=True, **kwargs):
     imgs = []
     for arg in args:
         if isinstance(arg, list):
@@ -339,21 +348,32 @@ def show_cvimg_in_sciview(*args, names=None, cols=3, cell_hw=(500, 500), max_wid
             imgs.append(arg)
     if isinstance(names, str):
         names = [names]
+
+    if fast_vis:
+        vis_img = get_cv_images_pic(*args, titles=names, cols=cols, cell_hw=cell_hw, max_width=max_width,
+                                    font_size=font_size*1.5)
+        imgs = [vis_img]
+
     if len(imgs) > 1:
-        fig = get_plt_images_figure(*args, titles=names, cols=cols, cell_hw=cell_hw, max_width=max_width, font_size=font_size)
+        fig = get_plt_images_figure(*args, titles=names, cols=cols, cell_hw=cell_hw, max_width=max_width,
+                                    font_size=font_size, axis_on=axis_on)
     else:
         vis_img = imgs[0]
         cell_hw = vis_img.shape[:2]
-        fig = get_plt_images_figure(*args, titles=names, cols=1, cell_hw=cell_hw, max_width=max_width, font_size=font_size)
+        fig = get_plt_images_figure(vis_img, titles=None, cols=1, cell_hw=cell_hw, max_width=max_width,
+                                    font_size=font_size, axis_on=axis_on)
     fig.show()
     return fig
+
 
 def show_ready_plt():
     plt.show()
 
+
 def show_ready_plt_in_sciview():
     plt.show()
     plt.close('all')
+
 
 def sector2line_v1(img: np.ndarray, c_x, c_y, radius, ring_stride, start_angle=0, end_angle=360):
     """
@@ -400,6 +420,7 @@ def sector2line_v1(img: np.ndarray, c_x, c_y, radius, ring_stride, start_angle=0
             x, y = max(x, 0), max(y, 0)
             rectangle_img[row, col] = img[y, x]
     return rectangle_img
+
 
 def sector2line(img: np.ndarray, c_x, c_y, radius, ring_stride, start_angle=0, end_angle=360):
     """
@@ -474,6 +495,7 @@ def sector2line(img: np.ndarray, c_x, c_y, radius, ring_stride, start_angle=0, e
 
     return rectangle_img
 
+
 # --------------------------------------------------------------------------------------------------------------------
 
 def constrain_resize_hw(src_hw: [list, tuple], max_hw: [list, tuple]) -> [list, tuple]:
@@ -497,6 +519,7 @@ def resize_image(src_image: np.ndarray, dst_hw: [list, tuple], method=cv2.INTER_
         return src_image
     resized_img = cv2.resize(src_image, (w, h), interpolation=method)
     return resized_img
+
 
 def resize_text_info(src_image_hw: [list, tuple], text_res: [list, None], dst_hw: [list, tuple]) -> [list, None]:
     if text_res is None:
@@ -647,12 +670,14 @@ def constrain_resize_image_to_approximate_template(src_image: np.ndarray, templa
     return cv2.resize(src_image, (new_w, new_h), interpolation=method)
 
 
-def put_optimize_text(img, label="",  location=(0, 0), margin=(1, 1), color=(0, 0, 255), font_bold=1, font_size=1, bg_color=True, bg_padding=1, transparency=0.65):
+def put_optimize_text(img, label="", location=(0, 0), margin=(1, 1), color=(0, 0, 255), font_bold=1, font_size=1.,
+                      bg_color=True, bg_padding=1, transparency=0.65):
     new_fc = font_size * 1.4 * (img.shape[1]) / (1000)
 
-    standard_text_size, baseline = cv2.getTextSize(label, fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, thickness=font_bold)
-    f_height = round(standard_text_size[1] * new_fc)
-    f_width = round(standard_text_size[0] * new_fc)
+    standard_text_size, baseline = cv2.getTextSize(label, fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1,
+                                                   thickness=font_bold)
+    f_height = math.ceil(standard_text_size[1] * new_fc)
+    f_width = math.ceil(standard_text_size[0] * new_fc)
 
     if f_height >= 16:
         font_bold = font_bold + 1
@@ -672,22 +697,22 @@ def put_optimize_text(img, label="",  location=(0, 0), margin=(1, 1), color=(0, 
         bg_color = (255 - color[0], 255 - color[1], 255 - color[2])
         zeros_mask = cv2.rectangle(zeros_mask, c1, c2, color=bg_color, thickness=-1)
 
-    zeros_mask = cv2.putText(zeros_mask, label, new_loc, cv2.FONT_HERSHEY_DUPLEX, fontScale=new_fc, color=color, thickness=font_bold, lineType=cv2.LINE_AA)
+    zeros_mask = cv2.putText(zeros_mask, label, new_loc, cv2.FONT_HERSHEY_DUPLEX, fontScale=new_fc, color=color,
+                             thickness=font_bold, lineType=cv2.LINE_AA)
 
     gray = cv2.cvtColor(zeros_mask, cv2.COLOR_BGR2GRAY)
     a_i = np.where(gray != 0)
 
-    result_area = img[a_i]*(1 - transparency) + zeros_mask[a_i] * transparency
+    result_area = img[a_i] * (1 - transparency) + zeros_mask[a_i] * transparency
     img[a_i] = result_area
 
     return img
 
 
-
 # --------------------------------------------------------------------------------------------------------------------
 
 
-def xxsector2line():
+def test_sector2line():
     circle_img_path = '../../exampleImages/other/orthogonal_scale_colormap.png'
     circle_img = cv2.imread(circle_img_path)
     c_x, c_y = 370, 370
@@ -705,25 +730,5 @@ def xxsector2line():
     print("ok")
 
 
-def cv_concat():
-    import glob
-    img_path_list = glob.glob('datasets01/all_text_db_full_size/train/**/*.jpg', recursive=True)
-    img_path_list2 = glob.glob('datasets01/all_text_db_full_size/test/**/*.jpg', recursive=True)
-    img_path_list += img_path_list2
-    img_list = []
-    for img_path in img_path_list:
-        img_list.append(cv2.imread(img_path))
-    import time
-
-    start = time.time()
-    fig = get_plt_images_figure(img_list)
-    print(time.time() - start)
-
-    start = time.time()
-    cvimg = pltfig2cvimg(fig)
-    print(time.time() - start)
-    print("")
-
-
 if __name__ == "__main__":
-    cv_concat()
+    test_sector2line()

@@ -534,7 +534,7 @@ class ToCVImage:
         """
         if pic.is_cuda:
             pic = pic.cpu()
-        pic = (pic.numpy() * 255).astype(np.uint8)
+        pic = (pic.numpy().clip(0, 0.996) * 255).astype(np.uint8)
         pic = pic.transpose(1,2,0)
         pic = pic[:, :, ::-1]
         return pic

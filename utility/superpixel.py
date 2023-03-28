@@ -20,13 +20,15 @@
 import numpy as np
 from skimage import segmentation
 
-__all__ = ['vis_boundaries', 'get_boundaries_from_label_map', 'expand_map_to_img']
-def vis_boundaries(img, b_map:np.ndarray, color=((253, 252,58))):
+__all__ = ['vis_boundaries', 'vis_superpixel', 'get_boundaries_from_label_map', 'expand_map_to_img']
+
+
+def vis_boundaries(img, b_map: np.ndarray, color=((253, 252, 58))):
     C = 1
     if len(img.shape) == 3:
         H, W, C = img.shape
         if len(b_map.shape) == 2:
-            b_map = expand_map_to_img(b_map, c = C)
+            b_map = expand_map_to_img(b_map, c=C)
     if len(b_map.shape) == 3:
         b_map = b_map[:, :, 0]
     b_map = b_map.astype(np.bool8)
@@ -38,9 +40,15 @@ def vis_boundaries(img, b_map:np.ndarray, color=((253, 252,58))):
     return img
 
 
+def vis_superpixel(img_base, label_map: np.ndarray, color=((253, 252, 58))):
+    b_map = get_boundaries_from_label_map(label_map, c=3)
+    vis = vis_boundaries(img_base, b_map, color=color)
+    return vis
+
+
 def get_boundaries_from_label_map(label_map, c=3):
     boundaries_map = segmentation.find_boundaries(label_map)
-    b_img_map = expand_map_to_img(boundaries_map,c)
+    b_img_map = expand_map_to_img(boundaries_map, c)
     return b_img_map
 
 
@@ -48,5 +56,3 @@ def expand_map_to_img(a_map, c=3):
     masked_map = np.expand_dims(a_map, axis=2)
     masked_map = np.concatenate([masked_map for _ in range(c)], axis=2)
     return masked_map
-
-
