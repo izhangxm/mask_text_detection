@@ -56,8 +56,7 @@ class Config(object):
             return conf
         elif isinstance(conf, dict):
             if 'class' in conf:
-                conf['class'] = self.find_class_in_modules(
-                    conf['class'], modules)
+                conf['class'] = self.find_class_in_modules(conf['class'], modules)
             if 'base' in conf:
                 base = conf.copy().pop('base')
 

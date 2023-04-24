@@ -17,10 +17,11 @@ from training.model_saver import ModelSaver
 from training.optimizer_scheduler import OptimizerScheduler
 from concern.config import Configurable, Config
 
+import os
 
 def main():
     parser = argparse.ArgumentParser(description='Text Recognition Training')
-    parser.add_argument('exp', type=str)
+    parser.add_argument('--exp', type=str, default="experiments/seg_detector/ic15_resnet18_deform_thre.yaml")
     parser.add_argument('--name', type=str)
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size for training')
     parser.add_argument('--resume', type=str, help='Resume from checkpoint')

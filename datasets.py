@@ -23,7 +23,7 @@ from utility import image_tool, superpixel
 from einops import rearrange
 from fast_slic.avx2 import SlicAvx2
 
-z
+
 class DataAugmentationForMAE(object):
     def __init__(self, args):
         imagenet_default_mean_and_std = args.imagenet_default_mean_and_std

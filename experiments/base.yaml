@@ -2,7 +2,15 @@ import: []
 package:
     - 'experiment'
     - 'structure.model'
+    - 'structure.builder'
+    - 'structure.representers.seg_detector_representer'
+    - 'structure.measurers.quad_measurer'
+    - 'structure.measurers.icdar_detection_measurer'
+    - 'structure.visualizers.seg_detector_visualizer'
     - 'training.learning_rate'
+    - 'training.checkpoint'
+    - 'training.model_saver'
+    - 'training.optimizer_scheduler'
     - 'data'
     - 'data.processes'
 define: []

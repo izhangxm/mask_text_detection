@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from concern.config import Configurable, State
-import concern.webcv2 as webcv2
 from .data_process import DataProcess
 
 

@@ -1,15 +1,4 @@
-from concern.config import Configurable, State
-from concern.log import Logger
-from structure.builder import Builder
-from structure.representers import *
-from structure.measurers import *
-from structure.visualizers import *
 from data.data_loader import *
-from data import *
-from training.model_saver import ModelSaver
-from training.checkpoint import Checkpoint
-from training.optimizer_scheduler import OptimizerScheduler
-
 
 class Structure(Configurable):
     builder = State()
